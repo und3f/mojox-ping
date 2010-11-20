@@ -67,6 +67,15 @@ sub ping {
     );
 
     $request->{socket} = $socket;
+
+    return $self;
+}
+
+sub start {
+    my ($self) = @_;
+    $self->ioloop->start;
+
+    return $self;
 }
 
 sub _store_result {
@@ -80,12 +89,14 @@ sub _store_result {
 
     push @$results, [$result, time - $request->{start}];
     if (@$results == $request->{times} || $result eq 'ERROR') {
+
         # Drop socket
         $self->ioloop->drop($request->{socket}) if $request->{socket};
 
         # Testing done
         $request->{cb}->($self, $results);
-    } else {
+    }
+    else {
         $self->_send_request($request);
     }
 }
@@ -152,17 +163,17 @@ L<MojoX::Ping> - asynchronous ping with L<Mojolicious>.
 
 =head1 SYNOPSIS
 
+    # Run this code as root
     use MojoX::Ping;
 
     my $ping = MojoX::Ping->new;
 
     $ping->ping('google.com', 1, sub {
         my ($ping, $result) = @_;
-        print "Result: ", $result->[0][0], " in ", $result->[0][1], " seconds\n";
+        print "Result: ", $result->[0][0],
+          " in ", $result->[0][1], " seconds\n";
         $ping->ioloop->stop;
-    });
-
-    $ping->ioloop->start;
+    })->start;
 
 =head1 DESCRIPTION
 
