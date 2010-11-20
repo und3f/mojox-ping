@@ -144,3 +144,43 @@ sub _icmp_checksum {
 }
 
 1;
+__END__
+
+=head1 NAME
+
+L<MojoX::Ping> - asynchronous ping with L<Mojolicious>.
+
+=head1 SYNOPSIS
+
+    use MojoX::Ping;
+
+    my $ping = MojoX::Ping->new;
+
+    $ping->ping('google.com', 1, sub {
+        my ($ping, $result) = @_;
+        print "Result: ", $result->[0][0], " in ", $result->[0][1], " seconds\n";
+        $ping->ioloop->stop;
+    });
+
+    $ping->ioloop->start;
+
+=head1 DESCRIPTION
+
+L<MojoX::Ping> is an asynchronous ping for Mojo.
+
+=head1 SEE ALSO
+
+L<Mojolicious>, L<Mojo::IOLoop>
+
+=head1 AUTHOR
+
+Sergey Zasenko, C<undef@cpan.org>.
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2010, Sergey Zasenko
+
+This program is free software, you can redistribute it and/or modify it under
+the terms of the Artistic License version 2.0.
+
+=cut
