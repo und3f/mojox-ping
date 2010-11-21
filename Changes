@@ -2,6 +2,8 @@ This file documents the revision history for Perl extension MojoX::Redis
 
 0.2 2010-11-21 00:00:00
         - interval between requests
+        - using IO::Poll for async I/O
+        - processing error icmp messages
 
 0.1 2010-11-20 00:00:00
         - First release

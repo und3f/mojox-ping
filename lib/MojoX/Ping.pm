@@ -9,6 +9,9 @@ use base 'Mojo::Base';
 use Mojo::IOLoop;
 use Socket qw/SOCK_RAW/;
 use Time::HiRes 'time';
+use IO::Socket::INET qw/sockaddr_in inet_aton/;
+use IO::Poll qw/POLLIN POLLOUT/;
+use Carp qw/croak/;
 
 __PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(interval => 0.2);
@@ -17,57 +20,38 @@ __PACKAGE__->attr('error');
 
 my $ICMP_PING = 'ccnnnA*';
 
+my $ICMP_ECHOREPLY     = 0;     # Echo Reply
+my $ICMP_DEST_UNREACH  = 3;     # Destination Unreachable
+my $ICMP_SOURCE_QUENCH = 4;     # Source Quench
+my $ICMP_REDIRECT      = 5;     # Redirect (change route)
+my $ICMP_ECHO          = 8;     # Echo Request
+my $ICMP_TIME_EXCEEDED = 11;    # Time Exceeded
+
 sub ping {
     my ($self, $host, $times, $cb) = @_;
 
-    my $request = {host => $host, times => $times, results => [], cb => $cb};
+    my $socket =
+      IO::Socket::INET->new(Proto => 'icmp', Type => SOCK_RAW, Blocking => 0)
+      or croak "Unable to create icmp socket : $!";
 
-    my $socket = $self->ioloop->connect(
-        address => $host,
-        port    => 0,
-        args    => {
-            Proto => 'icmp',
-            Type  => SOCK_RAW
-        },
-        on_connect => sub {
-            my ($loop, $id) = @_;
+    my $poll = IO::Poll->new;
 
-            $self->_send_request($request);
-        },
-        on_read => sub {
-            my ($loop, $id, $chunk) = @_;
+    $poll->mask($socket => POLLOUT);
 
-            my $icmp_msg = substr $chunk, 20;
+    my $ip = inet_aton($host);
 
-            my ($type, $sequence, $data) =
-              (unpack $ICMP_PING, $icmp_msg)[0, 4, 5];
+    my $request = {
+        host        => $host,
+        times       => $times,
+        results     => [],
+        cb          => $cb,
+        poll        => $poll,
+        socket      => $socket,
+        identifier  => int(rand 0x10000),
+        destination => scalar sockaddr_in(0, $ip)
+    };
 
-            if ($type == 0) {
-
-                # ICMP ECHO REPLY
-
-                # Is sequence right?
-                if ($sequence == @{$request->{results}} + 1) {
-
-                    # Check data
-                    if ($data eq $request->{data}) {
-                        $self->_store_result($request, 'OK');
-                    }
-                    else {
-                        $self->_store_result($request, 'MALFORMED');
-                    }
-                }
-            }
-        },
-        on_error => sub {
-            my ($loop, $id, $error) = @_;
-
-            $self->error("Unable to create icmp socket : $!");
-            $self->_store_result($request, 'ERROR');
-        }
-    );
-
-    $request->{socket} = $socket;
+    $self->ioloop->on_tick(sub { $self->_run_poll($poll, $request) });
 
     return $self;
 }
@@ -77,6 +61,65 @@ sub start {
     $self->ioloop->start;
 
     return $self;
+}
+
+sub _run_poll {
+    my ($self, $poll, $request) = @_;
+
+    $poll->poll(0);
+
+    if ($poll->handles(POLLOUT)) {
+        $self->_send_request($request);
+    }
+    elsif ($poll->handles(POLLIN)) {
+        $self->_on_read($request);
+    }
+}
+
+sub _on_read {
+    my ($self, $request) = @_;
+
+    $request->{socket}->sysread(my $chunk, 4194304, 0);
+
+    my $icmp_msg = substr $chunk, 20;
+
+    my ($type, $identifier, $sequence, $data);
+
+    $type = unpack 'c', $icmp_msg;
+
+    if ($type == $ICMP_ECHOREPLY) {
+        ($type, $identifier, $sequence, $data) =
+          (unpack $ICMP_PING, $icmp_msg)[0, 3, 4, 5];
+    }
+    elsif ($type == $ICMP_DEST_UNREACH || $type == $ICMP_TIME_EXCEEDED) {
+        ($identifier, $sequence) = unpack('nn', substr($chunk, 52));
+    }
+    else {
+
+        # Don't mind
+        return;
+    }
+
+    # Is it response to our latest message?
+    return unless $identifier == $request->{identifier};
+    return unless $sequence == @{$request->{results}} + 1;
+
+    if ($type == $ICMP_ECHOREPLY) {
+
+        # Check data
+        if ($data eq $request->{data}) {
+            $self->_store_result($request, 'OK');
+        }
+        else {
+            $self->_store_result($request, 'MALFORMED');
+        }
+    }
+    elsif ($type == $ICMP_DEST_UNREACH) {
+        $self->_store_result($request, 'DEST_UNREACH');
+    }
+    elsif ($type == $ICMP_TIME_EXCEEDED) {
+        $self->_store_result($request, 'TIMEOUT');
+    }
 }
 
 sub _store_result {
@@ -89,20 +132,23 @@ sub _store_result {
     delete $request->{timer};
 
     push @$results, [$result, time - $request->{start}];
-    if (@$results == $request->{times} || $result eq 'ERROR') {
 
-        # Drop socket
-        $self->ioloop->drop($request->{socket}) if $request->{socket};
+    if (@$results == $request->{times} || $result eq 'ERROR') {
 
         # Testing done
         $request->{cb}->($self, $results);
     }
+
+    # Perform another check
     else {
+
+        my $socket = $request->{socket};
+        $request->{poll}->mask($socket);
 
         # Setup interval timer before next request
         $self->ioloop->timer(
             $self->interval => sub {
-                $self->_send_request($request);
+                $request->{poll}->mask($socket, POLLOUT);
             }
         );
     }
@@ -112,12 +158,12 @@ sub _send_request {
     my ($self, $request) = @_;
 
     my $checksum   = 0x0000;
-    my $identifier = 1;
+    my $identifier = $request->{identifier};
     my $sequence   = @{$request->{results}} + 1;
     my $data       = 'abcdef';
 
     my $msg = pack $ICMP_PING,
-      0x08, 0x00, $checksum,
+      $ICMP_ECHO, 0x00, $checksum,
       $identifier, $sequence, $data;
 
     $checksum = $self->_icmp_checksum($msg);
@@ -137,7 +183,11 @@ sub _send_request {
         }
     );
 
-    $self->ioloop->write($request->{socket} => $msg);
+    my $socket = $request->{socket};
+
+    $socket->send($msg, 0, $request->{destination}) or die "$!";
+
+    $request->{poll}->mask($socket, POLLIN);
 }
 
 sub _icmp_checksum {

@@ -13,6 +13,9 @@ WriteMakefile(
     NAME         => 'MojoX::Ping',
     VERSION_FROM => 'lib/MojoX/Ping.pm',
     AUTHOR       => 'Sergey Zasenko <d3fin3@gmail.com>',
-    PREREQ_PM => { 'Mojolicious' => '0.9003' },
+    PREREQ_PM    => {
+        'Mojolicious' => '0.9003',
+        'IO::Poll'    => 0,
+    },
     test => {TESTS => 't/*.t t/*/*.t t/*/*/*.t'}
 );
