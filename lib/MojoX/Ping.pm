@@ -48,10 +48,13 @@ sub ping {
         poll        => $poll,
         socket      => $socket,
         identifier  => int(rand 0x10000),
-        destination => scalar sockaddr_in(0, $ip)
+        destination => scalar sockaddr_in(0, $ip),
     };
 
-    $self->ioloop->on_tick(sub { $self->_run_poll($poll, $request) });
+    my $on_tick_id =
+      $self->ioloop->on_tick(sub { $self->_run_poll($poll, $request) });
+
+    $request->{on_tick_id} = $on_tick_id;
 
     return $self;
 }
@@ -135,8 +138,14 @@ sub _store_result {
 
     if (@$results == $request->{times} || $result eq 'ERROR') {
 
+        # Cleanup
+        $request->{socket}->close;
+        $self->ioloop->drop($request->{on_tick_id});
+
         # Testing done
         $request->{cb}->($self, $results);
+
+        undef $request;
     }
 
     # Perform another check
