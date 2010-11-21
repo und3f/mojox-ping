@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.1;
+our $VERSION = 0.2;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -11,7 +11,8 @@ use Socket qw/SOCK_RAW/;
 use Time::HiRes 'time';
 
 __PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
-__PACKAGE__->attr(timeout => 5);
+__PACKAGE__->attr(interval => 0.2);
+__PACKAGE__->attr(timeout  => 5);
 __PACKAGE__->attr('error');
 
 my $ICMP_PING = 'ccnnnA*';
@@ -97,7 +98,13 @@ sub _store_result {
         $request->{cb}->($self, $results);
     }
     else {
-        $self->_send_request($request);
+
+        # Setup interval timer before next request
+        $self->ioloop->timer(
+            $self->interval => sub {
+                $self->_send_request($request);
+            }
+        );
     }
 }
 
