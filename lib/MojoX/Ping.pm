@@ -11,7 +11,9 @@ use Socket qw/SOCK_RAW/;
 use Time::HiRes 'time';
 use IO::Socket::INET qw/sockaddr_in inet_aton/;
 use IO::Poll qw/POLLIN POLLOUT/;
-use Carp qw/croak/;
+use List::Util ();
+use Scalar::Util ();
+require Carp;
 
 __PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(interval => 0.2);
@@ -27,16 +29,37 @@ my $ICMP_REDIRECT      = 5;     # Redirect (change route)
 my $ICMP_ECHO          = 8;     # Echo Request
 my $ICMP_TIME_EXCEEDED = 11;    # Time Exceeded
 
+sub new {
+    my $class = shift;
+
+    my $self = $class->SUPER::new(@_);
+
+    # Create RAW socket
+    my $socket = IO::Socket::INET->new(
+        Proto    => 'icmp',
+        Type     => SOCK_RAW,
+        Blocking => 0
+    ) or Carp::croak "Unable to create icmp socket : $!";
+
+    $self->{_socket} = $socket;
+
+    # Create Poll object
+    my $poll = IO::Poll->new;
+    $poll->mask($socket => POLLOUT);
+
+    $self->{_poll} = $poll;
+
+    # Ping tasks
+    $self->{_tasks}     = [];
+    $self->{_tasks_out} = [];
+
+    return $self;
+}
+
 sub ping {
     my ($self, $host, $times, $cb) = @_;
 
-    my $socket =
-      IO::Socket::INET->new(Proto => 'icmp', Type => SOCK_RAW, Blocking => 0)
-      or croak "Unable to create icmp socket : $!";
-
-    my $poll = IO::Poll->new;
-
-    $poll->mask($socket => POLLOUT);
+    my $socket = $self->{_socket};
 
     my $ip = inet_aton($host);
 
@@ -45,16 +68,24 @@ sub ping {
         times       => $times,
         results     => [],
         cb          => $cb,
-        poll        => $poll,
-        socket      => $socket,
         identifier  => int(rand 0x10000),
         destination => scalar sockaddr_in(0, $ip),
     };
 
-    my $on_tick_id =
-      $self->ioloop->on_tick(sub { $self->_run_poll($poll, $request) });
+    push @{$self->{_tasks}}, $request;
 
-    $request->{on_tick_id} = $on_tick_id;
+    push @{$self->{_tasks_out}}, $request;
+
+    $self->{_poll}->mask($socket => POLLOUT);
+
+    # Install on_tick callback
+    unless ($self->{on_tick_id}) {
+        my $ping = $self;
+        Scalar::Util::weaken $ping;
+
+        $self->{_on_tick_id} =
+          $self->ioloop->on_tick(sub { $ping->_run_poll });
+    }
 
     return $self;
 }
@@ -67,22 +98,27 @@ sub start {
 }
 
 sub _run_poll {
-    my ($self, $poll, $request) = @_;
+    my $self = shift;
 
+    my $poll = $self->{_poll};
     $poll->poll(0);
 
     if ($poll->handles(POLLOUT)) {
-        $self->_send_request($request);
+        foreach my $request (@{$self->{_tasks_out}}) {
+            $self->_send_request($request);
+        }
+        $self->{_tasks_out} = [];
     }
     elsif ($poll->handles(POLLIN)) {
-        $self->_on_read($request);
+        $self->_on_read;
     }
 }
 
 sub _on_read {
-    my ($self, $request) = @_;
+    my $self = shift;
 
-    $request->{socket}->sysread(my $chunk, 4194304, 0);
+    my $socket = $self->{_socket};
+    $socket->sysread(my $chunk, 4194304, 0);
 
     my $icmp_msg = substr $chunk, 20;
 
@@ -103,8 +139,14 @@ sub _on_read {
         return;
     }
 
+    # Find our task
+    my $request =
+      List::Util::first { $identifier == $_->{identifier} }
+    @{$self->{_tasks}};
+
+    return unless $request;
+
     # Is it response to our latest message?
-    return unless $identifier == $request->{identifier};
     return unless $sequence == @{$request->{results}} + 1;
 
     if ($type == $ICMP_ECHOREPLY) {
@@ -139,8 +181,15 @@ sub _store_result {
     if (@$results == $request->{times} || $result eq 'ERROR') {
 
         # Cleanup
-        $request->{socket}->close;
-        $self->ioloop->drop($request->{on_tick_id});
+        my @tasks = @{$self->{_tasks}};
+        for my $i (0 .. scalar @tasks) {
+            if ($tasks[$i] == $request) {
+                splice @tasks, $i, 1;
+                last;
+            }
+        }
+
+        $self->ioloop->drop(delete $self->{_on_tick_id}) unless (@tasks);
 
         # Testing done
         $request->{cb}->($self, $results);
@@ -150,14 +199,11 @@ sub _store_result {
 
     # Perform another check
     else {
-
-        my $socket = $request->{socket};
-        $request->{poll}->mask($socket);
-
         # Setup interval timer before next request
         $self->ioloop->timer(
             $self->interval => sub {
-                $request->{poll}->mask($socket, POLLOUT);
+                push @{$self->{_tasks_out}}, $request;
+                $self->{_poll}->mask($self->{_socket} => POLLOUT);
             }
         );
     }
@@ -192,11 +238,10 @@ sub _send_request {
         }
     );
 
-    my $socket = $request->{socket};
+    my $socket = $self->{_socket};
 
     $socket->send($msg, 0, $request->{destination}) or die "$!";
-
-    $request->{poll}->mask($socket, POLLIN);
+    $self->{_poll}->mask($socket => POLLIN);
 }
 
 sub _icmp_checksum {
