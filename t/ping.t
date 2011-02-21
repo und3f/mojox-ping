@@ -8,7 +8,7 @@ use Mojo::IOLoop;
 
 plan skip_all => 'You can run tests just as root' if $<;
 
-plan tests => 3;
+plan tests => 5;
 
 use_ok 'MojoX::Ping';
 
@@ -16,7 +16,9 @@ my $ping = new_ok 'MojoX::Ping' => [timeout => 1];
 
 my $result;
 
-$ping->ping('127.0.0.1', 1,
+$ping->ping(
+    '127.0.0.1',
+    2,
     sub {
         my ($ping, $lres) = @_;
 
@@ -28,4 +30,19 @@ $ping->ping('127.0.0.1', 1,
 
 $ping->ioloop->start;
 
-is_deeply $result, [['OK', $result->[0][1]]], 'ping 127.0.0.1';
+is_deeply $result, [['OK', $result->[0][1]], ['OK', $result->[1][1]]],
+  'ping 127.0.0.1';
+
+# Check two concurrent ping
+my @res;
+$ping->ping('127.0.0.1', 4, \&ping_cb);
+$ping->ping('127.0.0.1', 4, \&ping_cb);
+$ping->ioloop->start;
+is $res[0][0][0], 'OK', 'first concurrent ping ok';
+is $res[1][0][0], 'OK', 'second concurrent ping ok';
+
+sub ping_cb {
+    my ($ping, $res) = @_;
+    push @res, $res;
+    $ping->ioloop->stop if @res >= 2;
+}
