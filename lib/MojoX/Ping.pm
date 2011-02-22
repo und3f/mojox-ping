@@ -81,7 +81,6 @@ sub ping {
     # Install on_tick callback
     unless ($self->{on_tick_id}) {
         my $ping = $self;
-        Scalar::Util::weaken $ping;
 
         $self->{_on_tick_id} =
           $self->ioloop->on_tick(sub { $ping->_run_poll });
