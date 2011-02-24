@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.3;
+our $VERSION = 0.4;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -292,6 +292,18 @@ L<MojoX::Ping> is an asynchronous ping for Mojo.
 =head1 SEE ALSO
 
 L<Mojolicious>, L<Mojo::IOLoop>
+
+=head1 SUPPORT
+
+=head2 IRC
+
+    #ru.pm on irc.perl.org
+    
+=head1 DEVELOPMENT
+
+=head2 Repository
+
+    http://github.com/und3f/mojox-ping
 
 =head1 AUTHOR
 

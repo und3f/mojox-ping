@@ -9,6 +9,10 @@ use warnings;
 # it's not whether you win or lose, it's how drunk you get.
 use ExtUtils::MakeMaker;
 
+if ($^O eq 'MSWin32') {
+    die "Building on OS '$^O' is unsupported. Only *nix systems\n";
+}
+
 WriteMakefile(
     NAME         => 'MojoX::Ping',
     VERSION_FROM => 'lib/MojoX/Ping.pm',
