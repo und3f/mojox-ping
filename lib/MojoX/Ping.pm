@@ -12,7 +12,6 @@ use Time::HiRes 'time';
 use IO::Socket::INET qw/sockaddr_in inet_aton/;
 use IO::Poll qw/POLLIN POLLOUT/;
 use List::Util ();
-use Scalar::Util ();
 require Carp;
 
 __PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
@@ -79,7 +78,7 @@ sub ping {
     $self->{_poll}->mask($socket => POLLOUT);
 
     # Install on_tick callback
-    unless ($self->{on_tick_id}) {
+    unless ($self->{_on_tick_id}) {
         my $ping = $self;
 
         $self->{_on_tick_id} =
@@ -180,15 +179,15 @@ sub _store_result {
     if (@$results == $request->{times} || $result eq 'ERROR') {
 
         # Cleanup
-        my @tasks = @{$self->{_tasks}};
-        for my $i (0 .. scalar @tasks) {
-            if ($tasks[$i] == $request) {
-                splice @tasks, $i, 1;
+        my $tasks = $self->{_tasks};
+        for my $i (0 .. scalar @$tasks) {
+            if ($tasks->[$i] == $request) {
+                splice @$tasks, $i, 1;
                 last;
             }
         }
 
-        $self->ioloop->drop(delete $self->{_on_tick_id}) unless (@tasks);
+        $self->ioloop->drop(delete $self->{_on_tick_id}) unless (@$tasks);
 
         # Testing done
         $request->{cb}->($self, $results);
