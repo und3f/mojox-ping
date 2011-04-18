@@ -268,7 +268,7 @@ __END__
 
 =head1 NAME
 
-L<MojoX::Ping> - asynchronous ping with L<Mojolicious>.
+MojoX::Ping - asynchronous ping with L<Mojolicious>.
 
 =head1 SYNOPSIS
 
