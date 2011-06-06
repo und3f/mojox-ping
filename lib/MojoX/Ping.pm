@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.4;
+our $VERSION = 0.41;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -82,7 +82,7 @@ sub ping {
         my $ping = $self;
 
         $self->{_on_tick_id} =
-          $self->ioloop->on_tick(sub { $ping->_run_poll });
+          $self->ioloop->recurring(0 => sub { $ping->_run_poll });
     }
 
     return $self;
@@ -171,8 +171,7 @@ sub _store_result {
     my $results = $request->{results};
 
     # Clear request specific data
-    $self->ioloop->drop($request->{timer}) if $request->{timer};
-    delete $request->{timer};
+    $self->ioloop->drop(delete $request->{timer}) if $request->{timer};
 
     push @$results, [$result, time - $request->{start}];
 
@@ -197,6 +196,7 @@ sub _store_result {
 
     # Perform another check
     else {
+
         # Setup interval timer before next request
         $self->ioloop->timer(
             $self->interval => sub {

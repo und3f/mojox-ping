@@ -1,16 +1,19 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
-0.4 2011-02-24 00:00:00
-        - denied building on Win32 systems
-        - fixed memory leaks
+0.41 2011-06-03 00:00:00
+        - Use new API of IOLoop
 
-0.3 2011-02-21 00:00:00
-        - use one socket for multiple pings
+0.4  2011-02-24 00:00:00
+         - denied building on Win32 systems
+         - fixed memory leaks
 
-0.2 2010-11-21 00:00:00
-        - interval between requests
-        - using IO::Poll for async I/O
-        - processing error icmp messages
+0.3  2011-02-21 00:00:00
+         - use one socket for multiple pings
 
-0.1 2010-11-20 00:00:00
-        - First release
+0.2  2010-11-21 00:00:00
+         - interval between requests
+         - using IO::Poll for async I/O
+         - processing error icmp messages
+
+0.1  2010-11-20 00:00:00
+         - First release

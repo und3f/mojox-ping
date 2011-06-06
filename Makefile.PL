@@ -20,7 +20,7 @@ WriteMakefile(
 
     BUILD_REQUIRES => {'Test::More' => '0.88'},
     PREREQ_PM      => {
-        'Mojolicious' => 0.999942,
+        'Mojolicious' => 1.4,
         'IO::Poll'    => 0,
     },
     META_MERGE => {
