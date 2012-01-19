@@ -3,18 +3,16 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.41;
+our $VERSION = 0.50;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
 use Socket qw/SOCK_RAW/;
 use Time::HiRes 'time';
 use IO::Socket::INET qw/sockaddr_in inet_aton/;
-use IO::Poll qw/POLLIN POLLOUT/;
 use List::Util ();
 require Carp;
 
-__PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(interval => 0.2);
 __PACKAGE__->attr(timeout  => 5);
 __PACKAGE__->attr('error');
@@ -43,10 +41,13 @@ sub new {
     $self->{_socket} = $socket;
 
     # Create Poll object
-    my $poll = IO::Poll->new;
-    $poll->mask($socket => POLLOUT);
+    $self->ioloop->iowatcher->watch(
+        $socket,
+        sub { $self->_on_read },
+        sub { $self->_send_requests }
+    );
 
-    $self->{_poll} = $poll;
+    $self->ioloop->iowatcher->change($socket, 1, 1);
 
     # Ping tasks
     $self->{_tasks}     = [];
@@ -75,15 +76,7 @@ sub ping {
 
     push @{$self->{_tasks_out}}, $request;
 
-    $self->{_poll}->mask($socket => POLLOUT);
-
-    # Install on_tick callback
-    unless ($self->{_on_tick_id}) {
-        my $ping = $self;
-
-        $self->{_on_tick_id} =
-          $self->ioloop->recurring(0 => sub { $ping->_run_poll });
-    }
+    $self->ioloop->iowatcher->change($socket, 1, 1);
 
     return $self;
 }
@@ -95,21 +88,15 @@ sub start {
     return $self;
 }
 
-sub _run_poll {
+sub _send_requests {
     my $self = shift;
 
-    my $poll = $self->{_poll};
-    $poll->poll(0);
+    foreach my $request (@{$self->{_tasks_out}}) {
+        $self->_send_request($request);
+    }
 
-    if ($poll->handles(POLLOUT)) {
-        foreach my $request (@{$self->{_tasks_out}}) {
-            $self->_send_request($request);
-        }
-        $self->{_tasks_out} = [];
-    }
-    elsif ($poll->handles(POLLIN)) {
-        $self->_on_read;
-    }
+    $self->{_tasks_out} = [];
+    $self->ioloop->iowatcher->change($self->{_socket}, 1, 0);
 }
 
 sub _on_read {
@@ -171,7 +158,7 @@ sub _store_result {
     my $results = $request->{results};
 
     # Clear request specific data
-    $self->ioloop->drop(delete $request->{timer}) if $request->{timer};
+    $self->ioloop->drop(delete $request->{timer}) if exists $request->{timer};
 
     push @$results, [$result, time - $request->{start}];
 
@@ -186,8 +173,6 @@ sub _store_result {
             }
         }
 
-        $self->ioloop->drop(delete $self->{_on_tick_id}) unless (@$tasks);
-
         # Testing done
         $request->{cb}->($self, $results);
 
@@ -201,7 +186,7 @@ sub _store_result {
         $self->ioloop->timer(
             $self->interval => sub {
                 push @{$self->{_tasks_out}}, $request;
-                $self->{_poll}->mask($self->{_socket} => POLLOUT);
+                $self->ioloop->iowatcher->change($self->{_socket}, 1, 1);
             }
         );
     }
@@ -239,7 +224,6 @@ sub _send_request {
     my $socket = $self->{_socket};
 
     $socket->send($msg, 0, $request->{destination}) or die "$!";
-    $self->{_poll}->mask($socket => POLLIN);
 }
 
 sub _icmp_checksum {

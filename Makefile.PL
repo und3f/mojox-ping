@@ -18,12 +18,8 @@ WriteMakefile(
     ABSTRACT_FROM => 'lib/MojoX/Ping.pm',
     VERSION_FROM  => 'lib/MojoX/Ping.pm',
 
-    BUILD_REQUIRES => {'Test::More' => '0.88'},
-    PREREQ_PM      => {
-        'Mojolicious' => 1.4,
-        'IO::Poll'    => 0,
-    },
-    META_MERGE => {
-        resources => {repository => 'https://github.com/und3f/mojox-ping'},
-    },
+    BUILD_REQUIRES => {'Test::More'  => '0.88'},
+    PREREQ_PM      => {'Mojolicious' => '2.37'},
+    META_MERGE =>
+      {resources => {repository => 'https://github.com/und3f/mojox-ping'}},
 );

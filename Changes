@@ -1,5 +1,10 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
+0.50 2012-01-10 00:00:00
+        - Use Mojo::IOWatcher instead of IO::Poll. WARNING! Mojo::IOWatcher is
+          experimental and Mojolicious development team can break this module
+          without warning.
+
 0.41 2011-06-03 00:00:00
         - Use new API of IOLoop
 
