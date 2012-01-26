@@ -5,8 +5,10 @@ use warnings;
 
 use Test::More;
 use Mojo::IOLoop;
+use IO::Socket::INET;
 
-plan skip_all => 'You can run tests just as root' if $<;
+plan skip_all => "Unable to open raw socket: $!"
+  unless IO::Socket::INET->new(Type => SOCK_RAW);
 
 plan tests => 5;
 

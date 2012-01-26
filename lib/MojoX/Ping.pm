@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.50;
+our $VERSION = 0.51;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -13,6 +13,7 @@ use IO::Socket::INET qw/sockaddr_in inet_aton/;
 use List::Util ();
 require Carp;
 
+__PACKAGE__->attr(ioloop => sub { Mojo::IOLoop->singleton });
 __PACKAGE__->attr(interval => 0.2);
 __PACKAGE__->attr(timeout  => 5);
 __PACKAGE__->attr('error');
