@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.51;
+our $VERSION = 0.511;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;
@@ -253,7 +253,7 @@ __END__
 
 =head1 NAME
 
-MojoX::Ping - asynchronous ping with L<Mojolicious>.
+MojoX::Ping - asynchronous ping with L<Mojolicious> (DEPRECATED).
 
 =head1 SYNOPSIS
 
@@ -271,7 +271,8 @@ MojoX::Ping - asynchronous ping with L<Mojolicious>.
 
 =head1 DESCRIPTION
 
-L<MojoX::Ping> is an asynchronous ping for Mojo.
+L<MojoX::Ping> is an asynchronous ping for Mojo (DEPRECATED).
+Use L<AnyEvent::Ping> instead.
 
 =head1 SEE ALSO
 
