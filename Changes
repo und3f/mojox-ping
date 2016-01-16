@@ -1,5 +1,9 @@
 This file documents the revision history for Perl extension MojoX::Redis
 
+0.512 2016-01-16
+        - Added x_deprecated => 1 to metadata, so various tools and systems
+          will automatically ignore this dist
+
 0.511 2012-02-11 00:00:00
         - deprecated
 
