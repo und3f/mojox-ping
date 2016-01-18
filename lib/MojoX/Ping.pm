@@ -278,12 +278,6 @@ Use L<AnyEvent::Ping> instead.
 
 L<Mojolicious>, L<Mojo::IOLoop>
 
-=head1 SUPPORT
-
-=head2 IRC
-
-    #ru.pm on irc.perl.org
-    
 =head1 DEVELOPMENT
 
 =head2 Repository
@@ -293,6 +287,12 @@ L<Mojolicious>, L<Mojo::IOLoop>
 =head1 AUTHOR
 
 Sergey Zasenko, C<undef@cpan.org>.
+
+=head1 CREDITS
+
+=over 2
+
+=item Neil Bowers (NEILB)
 
 =head1 COPYRIGHT AND LICENSE
 
