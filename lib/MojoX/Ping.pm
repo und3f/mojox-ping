@@ -3,7 +3,7 @@ package MojoX::Ping;
 use strict;
 use warnings;
 
-our $VERSION = 0.511;
+our $VERSION = 0.512;
 use base 'Mojo::Base';
 
 use Mojo::IOLoop;

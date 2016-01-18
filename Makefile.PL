@@ -20,6 +20,8 @@ WriteMakefile(
 
     BUILD_REQUIRES => {'Test::More'  => '0.88'},
     PREREQ_PM      => {'Mojolicious' => '2.37'},
-    META_MERGE =>
-      {resources => {repository => 'https://github.com/und3f/mojox-ping'}},
+    META_MERGE => {
+        x_deprecated => 1,
+        resources => {repository => 'https://github.com/und3f/mojox-ping'},
+    },
 );
